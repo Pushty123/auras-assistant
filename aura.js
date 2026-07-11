@@ -65,14 +65,28 @@ function setupVoice() {
     };
 }
 
+function stopSpeaking() {
+    synth.cancel();
+    speechQueue = [];
+    isSpeakingNow = false;
+}
+
 function toggleMic() {
     if (!recognition) setupVoice();
+    stopSpeaking();
     if (isListening) {
         recognition.stop();
         isListening = false;
-    } else {
+        return;
+    }
+    try {
         recognition.start();
         isListening = true;
+    } catch (err) {
+        isListening = false;
+        document.getElementById('transcript').textContent = 'Error starting microphone. Tap again.';
+        document.getElementById('micButton').textContent = '🎤 SPEAK NOW';
+        document.getElementById('micButton').style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
     }
 }
 
@@ -992,23 +1006,30 @@ function addMessage(sender, text) {
     chatArea.scrollTop = chatArea.scrollHeight;
 }
 
+let isSpeakingNow = false;
+
 function speak(text) {
     speechQueue.push(text);
-    if (synth.speaking) return;
-
-    function playNext() {
-        if (speechQueue.length === 0) return;
-        let nextText = speechQueue.shift();
-        let utterance = new SpeechSynthesisUtterance(nextText);
-        utterance.rate = 0.95;
-        utterance.pitch = 1.1;
-        utterance.volume = 1;
-        utterance.lang = 'en-IN';
-        utterance.onend = () => playNext();
-        synth.speak(utterance);
+    if (!isSpeakingNow) {
+        playNextSpeech();
     }
+}
 
-    playNext();
+function playNextSpeech() {
+    if (speechQueue.length === 0) {
+        isSpeakingNow = false;
+        return;
+    }
+    isSpeakingNow = true;
+    let nextText = speechQueue.shift();
+    let utterance = new SpeechSynthesisUtterance(nextText);
+    utterance.rate = 0.95;
+    utterance.pitch = 1.1;
+    utterance.volume = 1;
+    utterance.lang = 'en-IN';
+    utterance.onend = () => playNextSpeech();
+    utterance.onerror = () => playNextSpeech();
+    synth.speak(utterance);
 }
 // ===== WEATHER + BRIEFING =====
 async function geocodeCity(cityName) {
