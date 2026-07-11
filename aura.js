@@ -441,13 +441,83 @@ function handleCommand(command) {
         return;
     }
 
-    speak("I heard you say " + command + ". I am still learning this command.");
-    addMessage('aura', "🤔 I heard: \"" + command + "\". Still learning. Try: hello aura, focus mode, add contact, call mom.");
+    askAI(command);
+}
+
+async function testApiKey() {
+    const key = document.getElementById('settingApiKey').value.trim();
+    const statusEl = document.getElementById('apiKeyStatus');
+    if (!key) {
+        statusEl.textContent = "⚠️ Paste a key first.";
+        statusEl.style.color = "#fbbf24";
+        return;
+    }
+    statusEl.textContent = "Testing...";
+    statusEl.style.color = "#888";
+    try {
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${key}`,
+            {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ contents: [{ parts: [{ text: "Say OK" }] }] })
+            }
+        );
+        if (response.ok) {
+            statusEl.textContent = "✅ Key works!";
+            statusEl.style.color = "#00ff88";
+        } else {
+            statusEl.textContent = "❌ Key rejected (check it's correct).";
+            statusEl.style.color = "#ff4444";
+        }
+    } catch (err) {
+        statusEl.textContent = "❌ Network error while testing.";
+        statusEl.style.color = "#ff4444";
+    }
 }
 
 function emergency() {
     speak("Emergency mode activated. Please call your local emergency services immediately or contact someone nearby.");
     addMessage('aura', "🚨 Emergency mode activated. Please call local emergency services immediately.");
+}
+
+// ===== AI FALLBACK =====
+function saveApiKey() {
+    const key = document.getElementById('apiKeyInput').value.trim();
+    if (key) {
+        localStorage.setItem('auraApiKey', key);
+        document.getElementById('apiKeyInput').value = '';
+        addMessage('aura', "✅ API key saved for this session.");
+    }
+}
+
+async function askAI(userText) {
+    const apiKey = localStorage.getItem('auraApiKey');
+    if (!apiKey) {
+        speak("Please add your API key first.");
+        addMessage('aura', "🔑 No API key set. Paste one in the box above.");
+        return;
+    }
+    addMessage('aura', "🤔 Thinking...");
+    try {
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
+            {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: userText }] }]
+                })
+            }
+        );
+        const data = await response.json();
+        const reply = data.candidates[0].content.parts[0].text;
+        speak(reply);
+        addMessage('aura', "🤖 " + reply);
+    } catch (err) {
+        speak("Sorry, I could not reach the AI right now.");
+        addMessage('aura', "❌ AI request failed.");
+    }
 }
 
 // ===== CONTACTS SYSTEM =====
@@ -879,6 +949,15 @@ function renderSettingsPanel() {
         <input id="settingCity" placeholder="e.g. Bengaluru" value="${settings.city}"
             style="width:100%;padding:8px;border-radius:8px;border:1px solid #333;background:#0d0d1a;color:white;font-size:13px;margin-bottom:8px;box-sizing:border-box" />
 
+        <label style="font-size:11px;color:#888;display:block;margin-bottom:4px">Gemini API Key (for AI fallback)</label>
+        <input type="password" id="settingApiKey" placeholder="Paste key here" value="${localStorage.getItem('auraApiKey') || ''}"
+            style="width:100%;padding:8px;border-radius:8px;border:1px solid #333;background:#0d0d1a;color:white;font-size:13px;margin-bottom:6px;box-sizing:border-box" />
+        <button onclick="testApiKey()"
+            style="width:100%;padding:7px;border:none;border-radius:8px;background:#00ff88;color:#000;font-size:12px;cursor:pointer;font-weight:bold;margin-bottom:8px">
+            🧪 Test Key
+        </button>
+        <div id="apiKeyStatus" style="font-size:11px;color:#888;margin-bottom:8px"></div>
+
         <button onclick="submitSettings()"
             style="width:100%;padding:9px;border:none;border-radius:8px;background:#667eea;color:#fff;font-size:13px;cursor:pointer;font-weight:bold">
             💾 Save Settings
@@ -889,8 +968,10 @@ function renderSettingsPanel() {
 function submitSettings() {
     let name = document.getElementById('settingName').value.trim();
     let city = document.getElementById('settingCity').value.trim();
+    let apiKey = document.getElementById('settingApiKey').value.trim();
     settings.name = name;
     settings.city = city;
+     if (apiKey) localStorage.setItem('auraApiKey', apiKey);
     saveSettings();
     let message = "✅ Settings saved" + (name ? " — hi " + name + "!" : ".");
     addMessage('aura', message);
