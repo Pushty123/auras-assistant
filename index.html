@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AURA - Voice AI Assistant</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0d0d1a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .phone {
+            width: 400px;
+            height: 700px;
+            background: #1a1a2e;
+            border-radius: 30px;
+            border: 10px solid #000;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            position: relative;
+        }
+
+        .status-bar {
+            background: #0d0d1a;
+            color: #667eea;
+            font-size: 12px;
+            padding: 8px 16px;
+            text-align: center;
+            border-bottom: 1px solid #333;
+        }
+
+        .screen {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 16px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 12px;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            color: #00ffcc;
+            letter-spacing: 4px;
+        }
+
+        .header p {
+            color: #888;
+            font-size: 13px;
+        }
+
+        .mode-display {
+            background: #0d0d1a;
+            border: 1px solid #667eea;
+            border-radius: 8px;
+            padding: 8px 16px;
+            text-align: center;
+            color: #00ff88;
+            font-size: 13px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            letter-spacing: 2px;
+        }
+
+        .chat-area {
+            flex: 1;
+            overflow-y: auto;
+            background: #0d0d1a;
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 12px;
+            border: 1px solid #222;
+        }
+
+        .aura-message {
+            background: #1a1a3e;
+            border-left: 3px solid #667eea;
+            color: #00ff88;
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .user-message {
+            background: #1e1e1e;
+            border-left: 3px solid #00ffcc;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 13px;
+            text-align: right;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .transcript {
+            font-size: 12px;
+            color: #667eea;
+            min-height: 30px;
+            text-align: center;
+            background: #0d0d1a;
+            border-radius: 8px;
+            padding: 6px;
+            border: 1px solid #222;
+        }
+
+        .mic-button {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 16px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            letter-spacing: 2px;
+            transition: all 0.2s;
+        }
+
+        .mic-button:active {
+            transform: scale(0.97);
+        }
+
+        .contacts-btn {
+            background: #0d0d1a;
+            color: #667eea;
+            border: 1px solid #667eea;
+            border-radius: 12px;
+            padding: 10px;
+            font-size: 14px;
+            cursor: pointer;
+            letter-spacing: 1px;
+        }
+
+        /* Contacts Panel */
+        .contacts-panel {
+            display: none;
+            position: absolute;
+            top: 60px;
+            left: 10px;
+            right: 10px;
+            background: #1a1a2e;
+            border-radius: 12px;
+            padding: 12px;
+            border: 1px solid #667eea;
+            z-index: 100;
+            max-height: 70%;
+            overflow-y: auto;
+        }
+
+        .contacts-panel h3 {
+            color: #667eea;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+
+        .contact-input {
+            width: 48%;
+            padding: 6px 10px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            background: #0d0d1a;
+            color: white;
+            font-size: 12px;
+        }
+
+        .add-contact-btn {
+            width: 100%;
+            padding: 8px;
+            margin-top: 8px;
+            background: #667eea;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .contact-list {
+            margin-top: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .contact-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 8px;
+            background: #0d0d1a;
+            border-radius: 8px;
+            margin-bottom: 4px;
+        }
+
+        .contact-name { color: #fff; font-size: 12px; }
+        .contact-num { color: #667eea; font-size: 11px; }
+
+        .call-btn {
+            background: #00ff88;
+            border: none;
+            border-radius: 6px;
+            padding: 4px 8px;
+            color: #000;
+            font-size: 11px;
+            cursor: pointer;
+        }
+
+        .close-contacts-btn {
+            width: 100%;
+            padding: 6px;
+            margin-top: 8px;
+            background: #ff4444;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="phone">
+        <div class="status-bar">🎤 AURA 12:30</div>
+
+        <div class="screen">
+
+            <!-- Contacts Panel -->
+            <div class="contacts-panel" id="contactsPanel">
+                <h3>📒 My Contacts</h3>
+                <div style="display:flex; gap:6px; margin-bottom:6px;">
+                    <input class="contact-input" id="contactName" placeholder="Name e.g. Mom" />
+                    <input class="contact-input" id="contactNum" placeholder="Number" type="tel" />
+                </div>
+                <button class="add-contact-btn" onclick="addContact()">+ Add Contact</button>
+                <div class="contact-list" id="contactList"></div>
+                <button class="close-contacts-btn" onclick="toggleContacts()">✕ Close</button>
+            </div>
+
+           <!-- Header -->
+            <div class="header" style="display:flex; justify-content:space-between; align-items:flex-start;">
+                <div style="width:38px;"></div>
+                <div>
+                    <h1>🎤 AURA</h1>
+                    <p id="headerSubtitle">Voice AI Assistant</p>
+                </div>
+                <button onclick="toggleSettings()" style="background:#0d0d1a; border:1px solid #667eea; color:#667eea; border-radius:10px; width:38px; height:38px; font-size:16px; cursor:pointer;">⚙️</button>
+            </div>
+
+            <!-- Mode Display -->
+            <div id="modeDisplay" class="mode-display">MODE: NORMAL ✓</div>
+
+            <!-- Chat Area -->
+            <div id="chatArea" class="chat-area">
+                <div class="aura-message">Hi! Click the mic and speak. Try: "hello aura" or "focus mode"</div>
+            </div>
+
+            <!-- Controls -->
+            <div class="controls">
+                <div class="transcript" id="transcript">Listening...</div>
+                <button class="contacts-btn" onclick="toggleContacts()">📒 CONTACTS</button>
+                <button class="mic-button" id="micButton" onclick="toggleMic()">🎤 SPEAK NOW</button>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="aura.js"></script>
+</body>
+</html>
