@@ -2,302 +2,859 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AURA - Voice AI Assistant</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>AURA — own your flow</title>
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#0d0d1a">
+    <meta name="theme-color" content="#07061a">
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
     <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
     <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
+    <link rel="icon" type="image/svg+xml" href="icons/aura-icon.svg">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+    /* =====================================================================
+       1. DESIGN TOKENS
+       Darker, higher-contrast indigo / violet / magenta. Glow only where it
+       carries meaning (active states, primary actions, Aura herself).
+       ===================================================================== */
+    :root {
+        --bg0: #04030c;            /* navy-black edges */
+        --bg1: #0a0820;
+        --bg2: #141038;
+        --indigo: #221a66;
+        --violet: #8b4dff;
+        --violet-soft: #b692ff;
+        --magenta: #ff3fb4;
+        --blue: #3f8cff;
+        --lav: #d4c4ff;            /* soft lavender for names */
+        --ink: #f6f3ff;
+        --muted: #aaa3cc;          /* 7:1 on --bg1 */
+        --danger: #ff7a95;
+        --line: rgba(185, 150, 255, .20);
+        --line-hi: rgba(206, 176, 255, .50);
+        --glass: rgba(24, 17, 64, .55);
+        --glass-2: rgba(255, 255, 255, .045);
+        --grad: linear-gradient(120deg, #6a35ff 0%, #b23cff 48%, #ff3fb4 100%);
+        --grad-v: linear-gradient(90deg, #7b3cff, #ff3fb4);
+        --glow: 0 0 22px rgba(160, 70, 255, .45), 0 0 56px rgba(255, 63, 180, .16);
+        --radius: 24px;
+        --tap: 48px;
+        --font: "Segoe UI Variable Display", "Segoe UI", "SF Pro Display", -apple-system,
+                BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
+        --ease: cubic-bezier(.2, .8, .2, 1);
+        --sat: env(safe-area-inset-top, 0px);
+        --sab: env(safe-area-inset-bottom, 0px);
+    }
 
-        body {
-            font-family: 'Arial', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+        font-family: var(--font);
+        background: var(--bg0);
+        color: var(--ink);
+        overflow: hidden;
+        -webkit-font-smoothing: antialiased;
+        -webkit-tap-highlight-color: transparent;
+    }
+    button, input, select { font: inherit; color: inherit; }
+    button { cursor: pointer; background: none; border: none; }
+    :focus-visible { outline: 2px solid var(--violet-soft); outline-offset: 3px; border-radius: 12px; }
+    [hidden] { display: none !important; }
+    .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    .ico { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
 
-        .phone {
-            width: 400px;
-            height: 700px;
-            background: #1a1a2e;
-            border-radius: 30px;
-            border: 10px solid #000;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            position: relative;
-        }
+    /* =====================================================================
+       2. APP SHELL — full-screen on phones, phone frame only on wide desktop
+       ===================================================================== */
+    .app {
+        position: fixed; inset: 0; overflow: hidden; isolation: isolate;
+        background:
+            radial-gradient(120% 60% at 50% -10%, #231a6e 0%, rgba(20, 16, 56, .9) 38%, transparent 70%),
+            radial-gradient(90% 60% at 100% 100%, rgba(120, 30, 140, .35), transparent 60%),
+            linear-gradient(180deg, var(--bg1) 0%, var(--bg0) 100%);
+    }
+    @media (min-width: 1024px) and (min-height: 760px) {
+        body { display: grid; place-items: center;
+               background: radial-gradient(60% 60% at 50% 40%, #120d33, #030208 80%); }
+        .app { position: relative; width: 420px; height: min(880px, 94vh);
+               border-radius: 46px; border: 10px solid #0e0b1f;
+               box-shadow: 0 0 0 1px rgba(180, 140, 255, .18), 0 40px 120px rgba(0, 0, 0, .7), 0 0 90px rgba(139, 77, 255, .18); }
+        .app { --sat: 0px; --sab: 0px; }
+    }
 
-        .status-bar {
-            background: #0d0d1a;
-            color: #667eea;
-            font-size: 12px;
-            padding: 8px 16px;
-            text-align: center;
-            border-bottom: 1px solid #333;
-        }
+    /* ---------- Ambient background: bokeh, particles, orbit rings, waves ---------- */
+    .ambient { position: absolute; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+    .bokeh { position: absolute; border-radius: 50%; filter: blur(2px); opacity: .5; will-change: transform;
+             animation: drift 22s ease-in-out infinite alternate; }
+    .bokeh.b1 { width: 180px; height: 180px; left: -50px; top: 12%; background: radial-gradient(circle, rgba(139,77,255,.55), transparent 70%); }
+    .bokeh.b2 { width: 120px; height: 120px; right: -20px; top: 30%; background: radial-gradient(circle, rgba(255,63,180,.45), transparent 70%); animation-duration: 28s; }
+    .bokeh.b3 { width: 90px; height: 90px; left: 30%; bottom: 18%; background: radial-gradient(circle, rgba(63,140,255,.4), transparent 70%); animation-duration: 18s; }
+    .bokeh.b4 { width: 240px; height: 240px; right: -90px; bottom: -60px; background: radial-gradient(circle, rgba(178,60,255,.35), transparent 70%); animation-duration: 32s; }
+    .bokeh.b5 { width: 60px; height: 60px; left: 12%; top: 58%; background: radial-gradient(circle, rgba(255,255,255,.25), transparent 70%); animation-duration: 16s; }
+    @keyframes drift { to { transform: translate(24px, -36px) scale(1.08); } }
+    .particle { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: #e7dbff; opacity: 0;
+                animation: rise linear infinite; }
+    @keyframes rise { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: .8; } 100% { transform: translateY(-160px); opacity: 0; } }
+    .orbits { position: absolute; left: 50%; top: 34%; width: 560px; height: 560px; margin: -280px 0 0 -280px; opacity: 0; transition: opacity .8s; }
+    .app[data-screen="home"] .orbits { opacity: 1; }
+    .orbits span { position: absolute; inset: 0; border-radius: 50%; border: 1px solid rgba(180, 140, 255, .09);
+                   transform: rotateX(68deg); animation: orbit 60s linear infinite; }
+    .orbits span:nth-child(2) { inset: 80px; border-color: rgba(255, 63, 180, .08); animation-duration: 45s; animation-direction: reverse; }
+    @keyframes orbit { to { transform: rotateX(68deg) rotate(360deg); } }
+    .waves { position: absolute; left: 0; right: 0; bottom: 0; height: 180px; }
+    .waves svg { position: absolute; bottom: 0; width: 200%; height: 100%; animation: wave 18s linear infinite; }
+    .waves svg:nth-child(2) { animation-duration: 26s; animation-direction: reverse; opacity: .7; }
+    .waves svg:nth-child(3) { animation-duration: 34s; opacity: .5; }
+    @keyframes wave { to { transform: translateX(-50%); } }
 
-        .screen {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            padding: 16px;
-            overflow: hidden;
-            position: relative;
-        }
+    /* ---------- Screens + transitions ---------- */
+    .scr {
+        position: absolute; inset: 0; display: flex; flex-direction: column;
+        padding: calc(var(--sat) + 20px) 22px calc(var(--sab) + 20px);
+        opacity: 0; visibility: hidden; transform: translateY(18px) scale(.985);
+        transition: opacity .55s ease, transform .65s var(--ease), visibility 0s linear .65s;
+        overflow-y: auto; overflow-x: hidden;
+    }
+    .scr.active { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+    .scr.leaving { transform: translateY(-14px) scale(1.01); }
+    .center { align-items: center; justify-content: center; text-align: center; }
 
-        .header {
-            text-align: center;
-            margin-bottom: 12px;
-        }
+    /* ---------- Shared components ---------- */
+    .glass {
+        background: var(--glass); border: 1px solid var(--line); border-radius: var(--radius);
+        backdrop-filter: blur(18px) saturate(140%); -webkit-backdrop-filter: blur(18px) saturate(140%);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 10px 40px rgba(0, 0, 0, .35);
+    }
+    .btn {
+        min-height: 54px; padding: 0 28px; border-radius: 999px; display: inline-flex; align-items: center;
+        justify-content: center; gap: 10px; font-size: 14px; font-weight: 700; letter-spacing: .14em;
+        transition: transform .15s var(--ease), box-shadow .2s, opacity .2s; white-space: nowrap;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn-grad { background: var(--grad); color: #fff; box-shadow: var(--glow); }
+    .btn-grad:hover { box-shadow: 0 0 30px rgba(170, 80, 255, .6), 0 0 70px rgba(255, 63, 180, .25); }
+    .btn-grad:disabled { opacity: .32; box-shadow: none; cursor: not-allowed; }
+    .btn-glass { background: var(--glass-2); border: 1px solid var(--line-hi); color: var(--ink);
+                 backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+    .btn-glass:hover { border-color: var(--violet-soft); box-shadow: 0 0 18px rgba(139, 77, 255, .3); }
+    .btn-block { width: 100%; }
+    .icon-btn { width: var(--tap); height: var(--tap); border-radius: 50%; display: grid; place-items: center; color: var(--lav); }
+    .icon-btn:hover { background: rgba(255, 255, 255, .06); }
+    .hex-btn { width: 52px; height: 58px; display: grid; place-items: center; color: #fff;
+               clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+               background: linear-gradient(160deg, rgba(139, 77, 255, .9), rgba(255, 63, 180, .75)); }
+    .hex-btn:disabled { opacity: .3; }
 
-        .header h1 {
-            font-size: 32px;
-            color: #00ffcc;
-            letter-spacing: 4px;
-        }
+    /* Typography pairs: thin light-weight + bold */
+    .thin { font-weight: 200; color: var(--violet-soft); letter-spacing: .01em; }
+    .bold { font-weight: 800; color: #fff; letter-spacing: -.01em; }
+    .muted { color: var(--muted); }
+    .split-title { position: relative; display: inline-flex; flex-direction: column; line-height: 1.02; text-align: left; }
+    .split-title .l1 { font-size: clamp(30px, 9vw, 40px); }
+    .split-title .l2 { font-size: clamp(44px, 13vw, 58px); padding-left: 1.1em; }
+    .split-title::after { /* fine diagonal line between the two words */
+        content: ""; position: absolute; left: .2em; top: 47%; width: 78%; height: 1px;
+        background: linear-gradient(90deg, transparent, var(--violet-soft) 30%, var(--magenta) 70%, transparent);
+        transform: rotate(-12deg); transform-origin: left; opacity: .8;
+    }
+    .grad-text { background: var(--grad-v); -webkit-background-clip: text; background-clip: text; color: transparent; }
 
-        .header p {
-            color: #888;
-            font-size: 13px;
-        }
+    /* AURA symbol */
+    .mark { display: block; }
+    .mark .am-halo { transform-origin: 60px 60px; animation: spin 18s linear infinite; }
+    .mark .am-halo2 { transform-origin: 60px 60px; animation: spin 26s linear infinite reverse; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes pulse { 50% { transform: scale(1.06); opacity: .85; } }
 
-        .mode-display {
-            background: #0d0d1a;
-            border: 1px solid #667eea;
-            border-radius: 8px;
-            padding: 8px 16px;
-            text-align: center;
-            color: #00ff88;
-            font-size: 13px;
-            font-weight: bold;
-            margin-bottom: 12px;
-            letter-spacing: 2px;
-        }
+    /* =====================================================================
+       3. OPENING
+       ===================================================================== */
+    .opening .mark { width: 112px; height: 112px; margin-bottom: 28px; filter: drop-shadow(0 0 22px rgba(170, 80, 255, .6)); animation: pulse 5s ease-in-out infinite; }
+    .brand3d-wrap { position: relative; }
+    .brand3d {
+        font-size: clamp(76px, 25vw, 132px); font-weight: 900; letter-spacing: .06em; line-height: 1;
+        background: linear-gradient(180deg, #ffffff 0%, #efe6ff 32%, #b48cff 58%, #6a35ff 82%, #3a1aa8 100%);
+        -webkit-background-clip: text; background-clip: text; color: transparent;
+        filter: drop-shadow(0 2px 0 #4a24b8) drop-shadow(0 3px 0 #361a8e) drop-shadow(0 4px 0 #26126a)
+                drop-shadow(0 18px 26px rgba(150, 70, 255, .5));
+        position: relative;
+    }
+    .brand3d::after { /* glossy top highlight */
+        content: attr(data-text); position: absolute; inset: 0;
+        background: linear-gradient(180deg, rgba(255, 255, 255, .85) 0%, rgba(255, 255, 255, 0) 42%);
+        -webkit-background-clip: text; background-clip: text; color: transparent; filter: none;
+    }
+    .brand3d.reflect { position: absolute; left: 0; right: 0; top: 100%; transform: scaleY(-1); opacity: .28; filter: blur(.6px);
+        -webkit-mask-image: linear-gradient(0deg, rgba(0,0,0,.9), transparent 55%); mask-image: linear-gradient(0deg, rgba(0,0,0,.9), transparent 55%); pointer-events: none; }
+    .floor { width: min(320px, 80vw); height: 2px; margin-top: 4px; border-radius: 2px;
+             background: linear-gradient(90deg, transparent, var(--violet-soft), #fff, var(--magenta), transparent);
+             box-shadow: 0 0 18px rgba(200, 140, 255, .9), 0 0 40px rgba(255, 63, 180, .5); }
+    .tagline { margin-top: 64px; font-size: 18px; font-weight: 300; letter-spacing: .32em; color: var(--lav); text-transform: lowercase; }
 
-        .chat-area {
-            flex: 1;
-            overflow-y: auto;
-            background: #0d0d1a;
-            border-radius: 12px;
-            padding: 12px;
-            margin-bottom: 12px;
-            border: 1px solid #222;
-        }
+    /* =====================================================================
+       4. LOADING
+       ===================================================================== */
+    .loading .mark { width: 128px; height: 128px; filter: drop-shadow(0 0 26px rgba(170, 80, 255, .55)); }
+    .loading h2 { margin-top: 22px; font-size: 40px; font-weight: 800; letter-spacing: .14em; }
+    .loading p { margin-top: 10px; color: var(--muted); font-weight: 300; }
+    .bar { width: min(260px, 70vw); height: 10px; margin-top: 30px; border-radius: 999px; background: rgba(255, 255, 255, .08); overflow: hidden; border: 1px solid var(--line); }
+    .bar > span { display: block; height: 100%; width: 0; border-radius: inherit; background: var(--grad-v);
+                  box-shadow: 0 0 14px rgba(255, 63, 180, .7); transition: width .25s linear; }
 
-        .aura-message {
-            background: #1a1a3e;
-            border-left: 3px solid #667eea;
-            color: #00ff88;
-            padding: 8px 12px;
-            border-radius: 8px;
-            margin-bottom: 8px;
-            font-size: 13px;
-            line-height: 1.4;
-        }
+    /* =====================================================================
+       5. TERMS
+       ===================================================================== */
+    .page-head { margin: 8px 0 18px; }
+    .page-head h1 { font-size: 30px; line-height: 1.15; }
+    .terms-list { list-style: none; counter-reset: t; display: grid; gap: 10px; padding: 16px; }
+    .terms-list li { counter-increment: t; display: grid; grid-template-columns: 30px 1fr; gap: 10px; font-size: 15px; line-height: 1.5; color: #e8e2fb; }
+    .terms-list li::before { content: counter(t); width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+        font-size: 13px; font-weight: 700; color: #fff; background: rgba(139, 77, 255, .28); border: 1px solid var(--line-hi); }
+    .terms-list b { color: #fff; }
+    .check { display: flex; align-items: center; gap: 12px; min-height: var(--tap); margin: 18px 0; font-size: 15px; cursor: pointer; }
+    .check input { appearance: none; width: 26px; height: 26px; border-radius: 8px; border: 1.5px solid var(--line-hi); background: var(--glass-2); display: grid; place-items: center; flex-shrink: 0; cursor: pointer; }
+    .check input:checked { background: var(--grad); border-color: transparent; box-shadow: var(--glow); }
+    .check input:checked::after { content: ""; width: 7px; height: 12px; border: solid #fff; border-width: 0 2.5px 2.5px 0; transform: translateY(-2px) rotate(45deg); }
+    .footer-actions { margin-top: auto; padding-top: 8px; }
 
-        .user-message {
-            background: #1e1e1e;
-            border-left: 3px solid #00ffcc;
-            color: #fff;
-            padding: 8px 12px;
-            border-radius: 8px;
-            margin-bottom: 8px;
-            font-size: 13px;
-            text-align: right;
-        }
+    /* =====================================================================
+       6. SIGN IN
+       ===================================================================== */
+    .signin h1 { font-size: clamp(30px, 8.5vw, 38px); line-height: 1.15; font-weight: 300; }
+    .signin h1 strong { font-weight: 900; }
+    .signin .sub { font-size: 20px; margin-top: 6px; font-weight: 700; color: var(--lav); }
+    .form { display: grid; gap: 16px; margin-top: 28px; }
+    .field label { display: block; font-size: 13px; font-weight: 600; letter-spacing: .06em; color: var(--muted); margin: 0 0 8px 6px; }
+    .input-wrap { position: relative; }
+    .glass-input {
+        width: 100%; min-height: 56px; padding: 0 20px; border-radius: 18px; font-size: 16px;
+        background: rgba(255, 255, 255, .04); border: 1.5px solid var(--line-hi); color: var(--ink);
+        backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); transition: border-color .2s, box-shadow .2s;
+    }
+    .glass-input::placeholder { color: rgba(200, 190, 235, .55); }
+    .glass-input:focus { outline: none; border-color: var(--violet-soft); box-shadow: 0 0 0 4px rgba(139, 77, 255, .22), 0 0 24px rgba(139, 77, 255, .25); }
+    .glass-input[aria-invalid="true"] { border-color: var(--danger); }
+    .input-wrap .glass-input { padding-right: 56px; }
+    .eye-toggle { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); }
+    .err { min-height: 18px; margin: 6px 0 0 6px; font-size: 13px; color: var(--danger); }
+    .local-note { display: flex; gap: 8px; align-items: flex-start; margin-top: 14px; font-size: 13px; color: var(--muted); line-height: 1.45; }
 
-        .controls {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
+    /* =====================================================================
+       7. WELCOME
+       ===================================================================== */
+    .welcome { justify-content: center; }
+    .welcome .split-title .l1 { font-size: clamp(34px, 10vw, 44px); }
+    .welcome .split-title .l2 { font-size: clamp(64px, 20vw, 86px); letter-spacing: .04em; }
+    .welcome .who { margin-top: 26px; font-size: 26px; font-weight: 300; color: var(--lav); }
+    .welcome .line { margin-top: 8px; color: var(--muted); font-size: 16px; font-weight: 300; max-width: 30ch; }
+    .welcome .btn { margin-top: 44px; align-self: flex-start; }
+    .welcome .mark { width: 64px; height: 64px; margin-bottom: 30px; }
 
-        .transcript {
-            font-size: 12px;
-            color: #667eea;
-            min-height: 30px;
-            text-align: center;
-            background: #0d0d1a;
-            border-radius: 8px;
-            padding: 6px;
-            border: 1px solid #222;
-        }
+    /* =====================================================================
+       8. SETUP WIZARD
+       ===================================================================== */
+    .hexsteps { display: flex; justify-content: center; gap: 14px; margin-top: 4px; }
+    .hexsteps .hx { width: 44px; height: 48px; position: relative; display: grid; place-items: center; font-size: 13px; font-weight: 800; color: var(--muted); }
+    .hexsteps .hx svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+    .hexsteps .hx polygon { fill: rgba(255, 255, 255, .03); stroke: rgba(180, 150, 255, .28); stroke-width: 1.5; transition: all .4s; }
+    .hexsteps .hx span { position: relative; }
+    .hexsteps .hx.done polygon, .hexsteps .hx.active polygon { fill: url(#gradStep); stroke: #e6d6ff; }
+    .hexsteps .hx.active { filter: drop-shadow(0 0 10px rgba(190, 90, 255, .8)); }
+    .hexsteps .hx.done, .hexsteps .hx.active { color: #fff; }
+    .hexlabel { text-align: center; margin-top: 10px; font-size: 13px; font-weight: 700; letter-spacing: .24em; color: var(--lav); min-height: 20px; }
+    .step-pane { display: none; flex: 1; flex-direction: column; min-height: 0; animation: paneIn .5s var(--ease); }
+    .step-pane.on { display: flex; }
+    @keyframes paneIn { from { opacity: 0; transform: translateX(18px); } }
+    .step-pane .btn-grad { margin-top: auto; }
 
-        .mic-button {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            padding: 16px;
-            font-size: 18px;
-            font-weight: bold;
-            cursor: pointer;
-            letter-spacing: 2px;
-            transition: all 0.2s;
-        }
+    /* Avatar (HER / HIM) */
+    .portraits { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 26px 0 10px; }
+    .portrait { position: relative; border-radius: 28px; padding: 0; text-align: center; transition: transform .3s var(--ease), box-shadow .3s, border-color .3s; }
+    .portrait .pic { aspect-ratio: 3/4; border-radius: 26px 26px 0 0; overflow: hidden;
+        background: radial-gradient(90% 70% at 50% 30%, rgba(139, 77, 255, .35), transparent 70%); }
+    .portrait .pic svg { width: 100%; height: 100%; }
+    .portrait .reflect { height: 34px; overflow: hidden; transform: scaleY(-1); opacity: .22;
+        -webkit-mask-image: linear-gradient(0deg, #000, transparent); mask-image: linear-gradient(0deg, #000, transparent); }
+    .portrait .reflect svg { width: 100%; }
+    .portrait .name { position: absolute; left: 0; right: 0; bottom: 14px; font-size: 18px; font-weight: 800; letter-spacing: .3em; }
+    .portrait[aria-pressed="true"] { border-color: var(--violet-soft); transform: translateY(-4px);
+        box-shadow: 0 0 0 1px var(--violet-soft), 0 0 34px rgba(170, 80, 255, .45); }
 
-        .mic-button:active {
-            transform: scale(0.97);
-        }
+    /* Carousel (faces + personalities) */
+    .car { position: relative; height: 320px; margin-top: 18px; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+    .car-item { position: absolute; left: 50%; top: 8px; width: 186px; height: 250px; margin-left: -93px;
+        border-radius: 28px; overflow: hidden; transition: transform .5s var(--ease), opacity .5s, box-shadow .5s;
+        will-change: transform; cursor: pointer; }
+    .car-item svg { width: 100%; height: 100%; display: block; pointer-events: none; }
+    .car-item.is-center { box-shadow: 0 0 0 1.5px var(--violet-soft), 0 0 40px rgba(175, 80, 255, .55); }
+    .car-caption { text-align: center; min-height: 64px; }
+    .car-caption .nm { font-size: 26px; font-weight: 800; }
+    .car-caption .tg { color: var(--muted); font-weight: 300; margin-top: 2px; }
+    .car-nav { display: flex; align-items: center; justify-content: space-between; margin: 6px 6px 14px; }
+    .car-dots { display: flex; gap: 6px; }
+    .car-dots i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255, 255, 255, .2); transition: all .3s; }
+    .car-dots i.on { width: 18px; border-radius: 3px; background: var(--grad-v); }
 
-        .contacts-btn {
-            background: #0d0d1a;
-            color: #667eea;
-            border: 1px solid #667eea;
-            border-radius: 12px;
-            padding: 10px;
-            font-size: 14px;
-            cursor: pointer;
-            letter-spacing: 1px;
-        }
+    /* Name step */
+    .ask-name h2 { font-size: 32px; line-height: 1.2; margin: 28px 0 22px; font-weight: 200; }
+    .ask-name h2 b { font-weight: 800; }
+    .hint { margin: 10px 0 0 6px; font-size: 13px; color: var(--muted); }
 
-        /* Contacts Panel */
-        .contacts-panel {
-            display: none;
-            position: absolute;
-            top: 60px;
-            left: 10px;
-            right: 10px;
-            background: #1a1a2e;
-            border-radius: 12px;
-            padding: 12px;
-            border: 1px solid #667eea;
-            z-index: 100;
-            max-height: 70%;
-            overflow-y: auto;
-        }
+    /* =====================================================================
+       9. HOME (existing voice screen, upgraded)
+       ===================================================================== */
+    .home { padding: 0; overflow: hidden; }
+    .home-top { display: flex; gap: 8px; align-items: center; padding: calc(var(--sat) + 14px) 16px 8px; }
+    .cmdbar { flex: 1; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 6px 0 12px; border-radius: 999px; }
+    .cmdbar .mark { width: 30px; height: 30px; flex-shrink: 0; }
+    .cmdbar input { flex: 1; min-width: 0; background: transparent; border: none; outline: none; font-size: 16px; min-height: 48px; }
+    .cmdbar input::placeholder { color: rgba(205, 195, 240, .6); }
+    .cmdbar:focus-within { border-color: var(--line-hi); box-shadow: 0 0 0 4px rgba(139, 77, 255, .18); }
+    .bell { position: relative; }
+    .bell .dot { position: absolute; top: 11px; right: 12px; width: 8px; height: 8px; border-radius: 50%; background: var(--magenta); box-shadow: 0 0 8px var(--magenta); }
 
-        .contacts-panel h3 {
-            color: #667eea;
-            font-size: 13px;
-            margin-bottom: 8px;
-        }
+    .home-scroll { flex: 1; overflow-y: auto; padding: 8px 16px 16px; display: flex; flex-direction: column; gap: 16px; }
+    .header.home-greet { display: flex; justify-content: space-between; align-items: flex-start; padding: 6px 6px 0; }
+    .home-greet .split-title .l1 { font-size: 30px; }
+    .home-greet .split-title .l2 { font-size: 40px; }
+    #headerSubtitle { margin-top: 10px; color: var(--muted); font-weight: 300; font-size: 15px; }
 
-        .contact-input {
-            width: 48%;
-            padding: 6px 10px;
-            border-radius: 8px;
-            border: 1px solid #333;
-            background: #0d0d1a;
-            color: white;
-            font-size: 12px;
-        }
+    .avatar-card { position: relative; height: clamp(260px, 42vh, 360px); border-radius: 32px; overflow: hidden;
+        background: radial-gradient(80% 70% at 50% 35%, rgba(139, 77, 255, .38), rgba(20, 14, 56, .2) 60%, transparent 80%), var(--glass);
+        box-shadow: 0 0 0 1px var(--line-hi), 0 0 50px rgba(150, 70, 255, .28), inset 0 1px 0 rgba(255,255,255,.08); }
+    .avatar-card .stage { position: absolute; inset: 0; display: grid; place-items: end center; }
+    .avatar-card .stage svg { height: 100%; width: auto; max-width: 100%; }
+    .listen-mark { position: absolute; left: 50%; top: 40%; width: 150px; height: 150px; margin: -75px 0 0 -75px;
+        opacity: 0; transform: scale(.85); transition: opacity .5s, transform .6s var(--ease); pointer-events: none;
+        filter: drop-shadow(0 0 20px rgba(200, 100, 255, .9)); mix-blend-mode: screen; }
+    .avatar-card[data-state="listening"] .listen-mark { opacity: .9; transform: scale(1); animation: pulse 1.6s ease-in-out infinite; }
+    .avatar-card[data-state="listening"] .stage { filter: saturate(.8) brightness(.8); }
+    .avatar-card .stage { transition: filter .5s; }
+    .av-actions { position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; justify-content: space-between; }
+    .av-actions .icon-btn { background: rgba(8, 6, 26, .55); border: 1px solid var(--line); color: #fff; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+    .avatar-card[data-state="listening"] .av-mic { animation: micPulse 1.2s ease-in-out infinite; border-color: var(--magenta); }
+    @keyframes micPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(255, 63, 180, .6); } 60% { box-shadow: 0 0 0 12px rgba(255, 63, 180, 0); } }
+    .av-state { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); font-size: 12px; font-weight: 700; letter-spacing: .18em;
+        padding: 6px 12px; border-radius: 999px; background: rgba(8, 6, 26, .55); border: 1px solid var(--line); color: var(--lav); white-space: nowrap; }
 
-        .add-contact-btn {
-            width: 100%;
-            padding: 8px;
-            margin-top: 8px;
-            background: #667eea;
-            border: none;
-            border-radius: 8px;
-            color: white;
-            font-size: 12px;
-            cursor: pointer;
-        }
+    /* Chat area */
+    .chat-area { max-height: 280px; min-height: 120px; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth; }
+    .aura-message, .user-message { max-width: 86%; padding: 11px 15px; font-size: 15px; line-height: 1.5; border-radius: 18px; animation: msgIn .35s var(--ease) both; word-wrap: break-word; }
+    .aura-message { align-self: flex-start; background: rgba(139, 77, 255, .14); border: 1px solid var(--line); border-top-left-radius: 6px; color: var(--ink); }
+    .user-message { align-self: flex-end; background: var(--grad); color: #fff; border-top-right-radius: 6px; text-align: left; box-shadow: 0 6px 18px rgba(170, 60, 255, .25); }
+    .tone-lead { color: var(--violet-soft); font-weight: 600; }
+    @keyframes msgIn { from { opacity: 0; transform: translateY(6px); } }
 
-        .contact-list {
-            margin-top: 8px;
-            max-height: 200px;
-            overflow-y: auto;
-        }
+    /* Dock with transcript, contacts, mic orb, mode */
+    .dock.controls { padding: 8px 16px 10px; display: grid; gap: 10px;
+        background: linear-gradient(180deg, transparent, rgba(4, 3, 12, .75) 40%); }
+    .transcript { min-height: 40px; padding: 9px 16px; border-radius: 999px; text-align: center; font-size: 14px; color: var(--lav);
+        background: rgba(255, 255, 255, .04); border: 1px solid var(--line); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dock-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; }
+    .contacts-btn { justify-self: start; display: inline-flex; align-items: center; gap: 8px; min-height: var(--tap); padding: 0 16px; border-radius: 999px;
+        border: 1px solid var(--line-hi); background: var(--glass-2); color: var(--ink); font-size: 14px; font-weight: 600; }
+    .contacts-btn:hover { border-color: var(--violet-soft); }
+    .mode-display { justify-self: end; max-width: 100%; padding: 8px 12px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .12em;
+        color: var(--lav); background: rgba(139, 77, 255, .14); border: 1px solid var(--line-hi); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        .contact-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 6px 8px;
-            background: #0d0d1a;
-            border-radius: 8px;
-            margin-bottom: 4px;
-        }
+    /* The mic becomes a glowing gradient orb. Its text stays (for aura.js and
+       screen readers) but is visually replaced by an icon. */
+    .mic-button {
+        position: relative; width: 76px; height: 76px; border-radius: 50%; margin-top: -26px;
+        font-size: 0; color: transparent; overflow: visible;
+        background: radial-gradient(circle at 35% 30%, #c9a6ff 0%, #8b4dff 35%, #c23cff 65%, #ff3fb4 100%);
+        box-shadow: 0 0 0 4px rgba(10, 8, 32, .9), 0 0 28px rgba(180, 80, 255, .7), 0 0 70px rgba(255, 63, 180, .3);
+        transition: transform .2s var(--ease), box-shadow .3s;
+    }
+    .mic-button::before { content: ""; position: absolute; inset: 0; margin: auto; width: 30px; height: 30px; background: #fff;
+        -webkit-mask: var(--mic-svg) center / contain no-repeat; mask: var(--mic-svg) center / contain no-repeat; }
+    .mic-button::after { content: ""; position: absolute; inset: -8px; border-radius: 50%; border: 2px solid rgba(255, 110, 210, .6); opacity: 0; }
+    .mic-button:active { transform: scale(.94); }
+    .mic-button.is-listening { box-shadow: 0 0 0 4px rgba(10, 8, 32, .9), 0 0 40px rgba(255, 63, 180, .9), 0 0 90px rgba(255, 63, 180, .45); }
+    .mic-button.is-listening::after { animation: ring 1.4s ease-out infinite; }
+    @keyframes ring { from { transform: scale(.9); opacity: .9; } to { transform: scale(1.35); opacity: 0; } }
+    :root { --mic-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Crect x='9' y='3' width='6' height='11' rx='3'/%3E%3Cpath d='M5 11a7 7 0 0 0 14 0M12 18v3'/%3E%3C/svg%3E"); }
 
-        .contact-name { color: #fff; font-size: 12px; }
-        .contact-num { color: #667eea; font-size: 11px; }
+    /* Icon rail (bottom navigation on mobile) */
+    .rail { display: grid; grid-template-columns: repeat(6, 1fr); padding: 6px 6px calc(var(--sab) + 6px);
+        background: rgba(8, 6, 24, .82); border-top: 1px solid var(--line); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+    .rail button { min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+        font-size: 11px; font-weight: 600; color: var(--muted); border-radius: 14px; position: relative; }
+    .rail button:hover { color: var(--ink); }
+    .rail button[aria-current="page"] { color: #fff; }
+    .rail .hexbg { position: absolute; top: 2px; width: 40px; height: 34px; clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+        background: var(--grad); box-shadow: var(--glow); opacity: 0; transition: opacity .3s; }
+    .rail button[aria-current="page"] .hexbg { opacity: 1; filter: drop-shadow(0 0 10px rgba(190, 80, 255, .8)); }
+    .rail .ico { position: relative; margin-top: 4px; }
 
-        .call-btn {
-            background: #00ff88;
-            border: none;
-            border-radius: 6px;
-            padding: 4px 8px;
-            color: #000;
-            font-size: 11px;
-            cursor: pointer;
-        }
+    /* =====================================================================
+       10. OVERLAYS: contacts, settings, ideas, permission dialog, toast
+       ===================================================================== */
+    .contacts-panel {
+        display: none; position: absolute; z-index: 60; left: 14px; right: 14px; top: 50%; transform: translateY(-50%);
+        max-height: 78%; overflow-y: auto; padding: 20px; border-radius: 28px;
+        background: rgba(18, 13, 50, .92); border: 1px solid var(--line-hi);
+        backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+        box-shadow: 0 0 0 100vmax rgba(3, 2, 10, .62), 0 0 50px rgba(140, 70, 255, .3);
+    }
+    .contacts-panel h3 { font-size: 20px; font-weight: 800; margin-bottom: 14px; }
+    .contact-input { width: 48%; flex: 1; min-width: 0; min-height: 50px; padding: 0 14px; border-radius: 14px; font-size: 15px;
+        background: rgba(255, 255, 255, .05); border: 1.5px solid var(--line-hi); color: var(--ink); }
+    .contact-input:focus { outline: none; border-color: var(--violet-soft); box-shadow: 0 0 0 4px rgba(139, 77, 255, .2); }
+    .contact-input::placeholder { color: rgba(205, 195, 240, .55); }
+    .add-contact-btn { width: 100%; min-height: 50px; margin-top: 10px; border-radius: 999px; background: var(--grad); color: #fff; font-weight: 700; letter-spacing: .08em; box-shadow: var(--glow); }
+    .contact-list { margin-top: 14px; display: grid; gap: 8px; max-height: 260px; overflow-y: auto; }
+    .contact-item { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px 10px 16px; border-radius: 16px; background: rgba(255, 255, 255, .05); border: 1px solid var(--line); }
+    .contact-name { color: #fff; font-size: 15px; font-weight: 700; }
+    .contact-num { color: var(--muted); font-size: 13px; }
+    .call-btn { min-height: 40px; padding: 0 16px; border-radius: 999px; background: var(--grad); color: #fff; font-size: 13px; font-weight: 700; }
+    .close-contacts-btn { width: 100%; min-height: 48px; margin-top: 14px; border-radius: 999px; border: 1px solid var(--line-hi); color: var(--ink); background: transparent; font-weight: 600; }
 
-        .close-contacts-btn {
-            width: 100%;
-            padding: 6px;
-            margin-top: 8px;
-            background: #ff4444;
-            border: none;
-            border-radius: 8px;
-            color: white;
-            font-size: 12px;
-            cursor: pointer;
-        }
+    .scrim { position: absolute; inset: 0; z-index: 64; background: rgba(3, 2, 10, .6); opacity: 0; pointer-events: none; transition: opacity .3s; }
+    .scrim.open { opacity: 1; pointer-events: auto; }
+    .sheet { position: absolute; z-index: 65; left: 0; right: 0; bottom: 0; max-height: 90%; overflow-y: auto;
+        padding: 10px 20px calc(var(--sab) + 24px); border-radius: 30px 30px 0 0;
+        background: rgba(16, 12, 44, .96); border-top: 1px solid var(--line-hi);
+        backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+        transform: translateY(104%); transition: transform .45s var(--ease); visibility: hidden; }
+    .sheet.open { transform: none; visibility: visible; }
+    .sheet .grab { width: 44px; height: 4px; border-radius: 4px; background: rgba(255, 255, 255, .22); margin: 0 auto 16px; }
+    .sheet-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .sheet-head h2 { font-size: 24px; font-weight: 200; }
+    .sheet-head h2 b { font-weight: 800; }
+    .set-group { margin-top: 20px; }
+    .set-group > .lbl { font-size: 12px; font-weight: 700; letter-spacing: .2em; color: var(--muted); margin: 0 0 10px 4px; text-transform: uppercase; }
+    .set-row { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 10px 14px; border-radius: 18px; background: rgba(255, 255, 255, .04); border: 1px solid var(--line); }
+    .set-row + .set-row { margin-top: 8px; }
+    .set-row .grow { flex: 1; min-width: 0; }
+    .set-row .t { font-weight: 700; }
+    .set-row .s { font-size: 13px; color: var(--muted); }
+    .seg { display: inline-flex; padding: 4px; gap: 4px; border-radius: 999px; background: rgba(255, 255, 255, .06); border: 1px solid var(--line); }
+    .seg button { min-height: 40px; padding: 0 16px; border-radius: 999px; font-weight: 700; font-size: 13px; letter-spacing: .12em; color: var(--muted); }
+    .seg button[aria-pressed="true"] { background: var(--grad); color: #fff; box-shadow: var(--glow); }
+    .thumbs { display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 8px; }
+    .thumbs button { flex: 0 0 76px; height: 96px; border-radius: 18px; overflow: hidden; border: 1.5px solid var(--line); background: rgba(139, 77, 255, .12); }
+    .thumbs button svg { width: 100%; height: 100%; }
+    .thumbs button[aria-pressed="true"] { border-color: var(--violet-soft); box-shadow: 0 0 18px rgba(170, 80, 255, .5); }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip { min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line-hi); background: var(--glass-2); font-weight: 600; font-size: 14px; color: var(--ink); }
+    .chip[aria-pressed="true"] { background: var(--grad); border-color: transparent; box-shadow: var(--glow); }
+    select.glass-input { appearance: none; padding-right: 40px;
+        background-image: linear-gradient(45deg, transparent 50%, var(--lav) 50%), linear-gradient(135deg, var(--lav) 50%, transparent 50%);
+        background-position: calc(100% - 22px) 50%, calc(100% - 16px) 50%; background-size: 6px 6px; background-repeat: no-repeat; }
+    select.glass-input option { background: #140f38; }
+    input[type="range"] { width: 100%; accent-color: var(--violet); min-height: 32px; }
+    .switch { appearance: none; width: 52px; height: 30px; border-radius: 999px; background: rgba(255, 255, 255, .14); position: relative; cursor: pointer; flex-shrink: 0; transition: background .25s; }
+    .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: transform .25s var(--ease); }
+    .switch:checked { background: var(--grad); box-shadow: var(--glow); }
+    .switch:checked::after { transform: translateX(22px); }
+    .danger-link { color: var(--danger); font-weight: 700; min-height: var(--tap); padding: 0 6px; }
+
+    .dialog { position: absolute; z-index: 80; left: 50%; top: 50%; width: min(360px, calc(100% - 32px)); padding: 26px 22px 20px; border-radius: 28px; text-align: center;
+        background: rgba(20, 14, 54, .97); border: 1px solid var(--line-hi); box-shadow: 0 0 0 100vmax rgba(3, 2, 10, .65), 0 0 50px rgba(150, 70, 255, .35);
+        transform: translate(-50%, -46%) scale(.96); opacity: 0; visibility: hidden; transition: all .3s var(--ease); }
+    .dialog.open { opacity: 1; visibility: visible; transform: translate(-50%, -50%); }
+    .dialog .mark { width: 64px; height: 64px; margin: 0 auto 12px; }
+    .dialog h2 { font-size: 22px; font-weight: 800; }
+    .dialog p { margin: 10px 0 20px; color: var(--muted); line-height: 1.5; }
+    .dialog .row { display: grid; gap: 8px; }
+
+    .toast { position: absolute; z-index: 90; left: 50%; bottom: calc(var(--sab) + 150px); transform: translate(-50%, 12px); opacity: 0; pointer-events: none;
+        padding: 12px 18px; border-radius: 999px; font-size: 14px; font-weight: 600; max-width: calc(100% - 32px); text-align: center;
+        background: rgba(24, 17, 64, .95); border: 1px solid var(--line-hi); box-shadow: 0 0 24px rgba(140, 70, 255, .35); transition: all .3s var(--ease); }
+    .toast.open { opacity: 1; transform: translate(-50%, 0); }
+
+    /* =====================================================================
+       11. AVATAR SVG PARTS (built by aura-ui.js)
+       ===================================================================== */
+    .av .av-body { animation: breathe 4.6s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+    .av .av-head { animation: sway 8s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 90%; }
+    .av .eye { transform-box: fill-box; transform-origin: center; transition: transform .07s; }
+    .av.blink .eye { transform: scaleY(.08); }
+    .av.wink .eye.r { transform: scaleY(.08); }
+    .av .pupils { transition: transform .35s var(--ease); }
+    .av .mouth { transition: d .08s linear; }
+    .av.static .av-body, .av.static .av-head { animation: none; }
+    @keyframes breathe { 50% { transform: translateY(-2px) scaleY(1.008); } }
+    @keyframes sway { 0%,100% { transform: rotate(-1.4deg); } 50% { transform: rotate(1.4deg); } }
+
+    /* =====================================================================
+       12. REDUCED MOTION
+       ===================================================================== */
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
+        .particle, .bokeh, .waves svg, .orbits span, .mark .am-halo, .mark .am-halo2 { animation: none !important; }
+    }
     </style>
 </head>
 <body>
-    <div class="phone">
-        <div class="status-bar">🎤 AURA 12:30</div>
 
-        <div class="screen">
+<!-- =======================================================================
+     Shared SVG defs: the AURA symbol (ring + flowing wave halo) and icons.
+     ======================================================================= -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <defs>
+        <linearGradient id="amGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#7b3cff"/><stop offset=".55" stop-color="#ff3fb4"/><stop offset="1" stop-color="#3f8cff"/>
+        </linearGradient>
+        <linearGradient id="amGrad2" x1="1" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#3f8cff"/><stop offset=".5" stop-color="#b23cff"/><stop offset="1" stop-color="#ff3fb4"/>
+        </linearGradient>
+        <radialGradient id="amCore" cx=".42" cy=".38" r=".6">
+            <stop offset="0" stop-color="#ffffff" stop-opacity=".95"/><stop offset=".35" stop-color="#d7b8ff" stop-opacity=".55"/><stop offset="1" stop-color="#7b3cff" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="gradStep" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7b3cff"/><stop offset="1" stop-color="#ff3fb4"/></linearGradient>
+        <filter id="amGlow" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+    </defs>
 
-            <!-- Contacts Panel -->
-            <div class="contacts-panel" id="contactsPanel">
-                <h3>📒 My Contacts</h3>
-                <div style="display:flex; gap:6px; margin-bottom:6px;">
-                    <input class="contact-input" id="contactName" placeholder="Name e.g. Mom" />
-                    <input class="contact-input" id="contactNum" placeholder="Number" type="tel" />
-                </div>
-                <button class="add-contact-btn" onclick="addContact()">+ Add Contact</button>
-                <div class="contact-list" id="contactList"></div>
-                <button class="close-contacts-btn" onclick="toggleContacts()">✕ Close</button>
-            </div>
+    <!-- AURA symbol: a luminous ring wrapped by two flowing wave halos -->
+    <symbol id="aura-mark" viewBox="0 0 120 120">
+        <g class="am-halo2" opacity=".45">
+            <path fill="none" stroke="url(#amGrad2)" stroke-width="1.2" stroke-dasharray="3 5" d="M113.1 60.0 L113.3 63.7 L112.8 67.4 L111.9 71.0 L110.4 74.5 L108.6 77.7 L106.5 80.7 L104.2 83.5 L101.9 86.2 L99.5 88.7 L97.2 91.3 L95.0 93.8 L92.8 96.4 L90.5 99.1 L88.1 101.7 L85.6 104.3 L82.8 106.7 L79.7 108.8 L76.4 110.5 L72.9 111.8 L69.3 112.5 L65.5 112.7 L61.8 112.4 L58.2 111.7 L54.7 110.6 L51.3 109.3 L48.1 107.9 L44.9 106.5 L41.8 105.1 L38.7 103.7 L35.5 102.4 L32.3 101.1 L29.0 99.6 L25.8 98.0 L22.6 96.1 L19.7 93.8 L17.0 91.2 L14.7 88.3 L12.9 85.0 L11.6 81.6 L10.7 77.9 L10.3 74.3 L10.2 70.6 L10.4 67.0 L10.8 63.4 L11.1 60.0 L11.5 56.6 L11.8 53.2 L12.1 49.8 L12.4 46.3 L12.7 42.8 L13.3 39.2 L14.1 35.6 L15.4 32.1 L17.0 28.8 L19.1 25.7 L21.6 22.9 L24.5 20.6 L27.7 18.7 L31.1 17.1 L34.6 15.9 L38.1 15.0 L41.5 14.2 L44.9 13.5 L48.2 12.8 L51.5 12.1 L54.9 11.3 L58.3 10.5 L61.8 9.7 L65.3 9.2 L69.0 8.9 L72.7 8.9 L76.4 9.5 L80.0 10.5 L83.4 12.1 L86.5 14.1 L89.3 16.5 L91.8 19.3 L94.0 22.2 L96.0 25.2 L97.8 28.3 L99.5 31.3 L101.2 34.2 L103.0 37.2 L104.8 40.1 L106.6 43.1 L108.4 46.1 L110.0 49.4 L111.4 52.8 L112.5 56.3Z"/>
+        </g>
+        <g class="am-halo" filter="url(#amGlow)">
+            <path fill="none" stroke="url(#amGrad)" stroke-width="1.8" stroke-linejoin="round" d="M106.0 60.0 L107.2 63.3 L107.9 66.7 L108.0 70.2 L107.3 73.6 L105.8 76.7 L103.7 79.5 L101.2 81.9 L98.4 84.0 L95.7 85.9 L93.1 87.8 L90.8 89.7 L88.7 91.9 L86.9 94.4 L85.0 97.1 L83.0 99.8 L80.7 102.5 L78.1 104.9 L75.2 106.6 L71.9 107.7 L68.5 108.0 L65.0 107.6 L61.6 106.6 L58.4 105.3 L55.4 103.9 L52.5 102.6 L49.6 101.5 L46.7 100.9 L43.7 100.4 L40.4 100.2 L37.0 99.8 L33.5 99.2 L30.2 98.1 L27.2 96.4 L24.6 94.2 L22.6 91.3 L21.3 88.1 L20.4 84.7 L20.0 81.3 L19.7 77.9 L19.4 74.8 L18.8 71.8 L18.0 68.9 L16.8 66.1 L15.4 63.1 L14.0 60.0 L12.8 56.7 L12.1 53.3 L12.0 49.8 L12.7 46.4 L14.2 43.3 L16.3 40.5 L18.8 38.1 L21.6 36.0 L24.3 34.1 L26.9 32.2 L29.2 30.3 L31.3 28.1 L33.1 25.6 L35.0 22.9 L37.0 20.2 L39.3 17.5 L41.9 15.1 L44.8 13.4 L48.1 12.3 L51.5 12.0 L55.0 12.4 L58.4 13.4 L61.6 14.7 L64.6 16.1 L67.5 17.4 L70.4 18.5 L73.3 19.1 L76.3 19.6 L79.6 19.8 L83.0 20.2 L86.5 20.8 L89.8 21.9 L92.8 23.6 L95.4 25.8 L97.4 28.7 L98.7 31.9 L99.6 35.3 L100.0 38.7 L100.3 42.1 L100.6 45.2 L101.2 48.2 L102.0 51.1 L103.2 53.9 L104.6 56.9Z"/>
+        </g>
+        <circle cx="60" cy="60" r="30" fill="url(#amCore)" opacity=".55"/>
+        <circle cx="60" cy="60" r="31" fill="none" stroke="url(#amGrad)" stroke-width="6.5" filter="url(#amGlow)"/>
+        <path d="M40 52 Q48 40 62 38" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" opacity=".85"/>
+        <path d="M44 66 Q52 58 60 66 T76 66" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".7"/>
+    </symbol>
 
-           <!-- Header -->
-            <div class="header" style="display:flex; justify-content:space-between; align-items:flex-start;">
-                <div style="width:38px;"></div>
-                <div>
-                    <h1>🎤 AURA</h1>
-                    <p id="headerSubtitle">Voice AI Assistant</p>
-                </div>
-                <button onclick="toggleSettings()" style="background:#0d0d1a; border:1px solid #667eea; color:#667eea; border-radius:10px; width:38px; height:38px; font-size:16px; cursor:pointer;">⚙️</button>
-            </div>
+    <!-- Line icons -->
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+    <symbol id="i-msg" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></symbol>
+    <symbol id="i-contacts" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"/></symbol>
+    <symbol id="i-crown" viewBox="0 0 24 24"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5z"/></symbol>
+    <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+    <symbol id="i-cam" viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h2.5L9 4h6l1.5 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M5 12h13M12 5l7 7-7 7"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-eyeoff" viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 5.1A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3 3.9M6.6 6.6A17 17 0 0 0 2 12s3.6 7 10 7a10 10 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
+    <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></symbol>
+    <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+</svg>
 
-             
-            <!-- Mode Display -->
-            <div id="modeDisplay" class="mode-display">MODE: NORMAL ✓</div>
+<div class="app" id="app" data-screen="opening">
 
-            <!-- Chat Area -->
-            <div id="chatArea" class="chat-area">
-                <div class="aura-message">Hi! Click the mic and speak. Try: "hello aura" or "focus mode"</div>
-            </div>
-
-            <!-- Controls -->
-            <div class="controls">
-                <div class="transcript" id="transcript">Listening...</div>
-                <button class="contacts-btn" onclick="toggleContacts()">📒 CONTACTS</button>
-                <button class="mic-button" id="micButton" onclick="toggleMic()">🎤 SPEAK NOW</button>
-            </div>
-
+    <!-- Ambient layers (particles are added by aura-ui.js) -->
+    <div class="ambient" aria-hidden="true">
+        <div class="bokeh b1"></div><div class="bokeh b2"></div><div class="bokeh b3"></div><div class="bokeh b4"></div><div class="bokeh b5"></div>
+        <div class="orbits"><span></span><span></span></div>
+        <div id="particles"></div>
+        <div class="waves">
+            <svg viewBox="0 0 1440 180" preserveAspectRatio="none"><path fill="rgba(110,50,255,.16)" d="M0 110 C180 60 360 160 540 110 S900 60 1080 110 S1260 160 1440 110 V180 H0Z M1440 110 C1620 60 1800 160 1980 110 S2340 60 2520 110 S2700 160 2880 110 V180 H1440Z"/></svg>
+            <svg viewBox="0 0 1440 180" preserveAspectRatio="none"><path fill="rgba(255,63,180,.10)" d="M0 130 C240 90 480 170 720 130 S1200 90 1440 130 V180 H0Z M1440 130 C1680 90 1920 170 2160 130 S2640 90 2880 130 V180 H1440Z"/></svg>
+            <svg viewBox="0 0 1440 180" preserveAspectRatio="none"><path fill="rgba(63,140,255,.10)" d="M0 150 C200 120 400 175 720 150 S1240 120 1440 150 V180 H0Z M1440 150 C1640 120 1840 175 2160 150 S2680 120 2880 150 V180 H1440Z"/></svg>
         </div>
     </div>
 
-    <script src="aura.js"></script>
+    <!-- ===================== 1. OPENING ===================== -->
+    <section class="scr center opening active" data-screen="opening" aria-label="AURA">
+        <svg class="mark" aria-hidden="true"><use href="#aura-mark"/></svg>
+        <div class="brand3d-wrap">
+            <h1 class="brand3d" data-text="AURA">AURA</h1>
+            <div class="brand3d reflect" data-text="AURA" aria-hidden="true">AURA</div>
+        </div>
+        <div class="floor" aria-hidden="true"></div>
+        <p class="tagline">own your flow</p>
+    </section>
+
+    <!-- ===================== 2. LOADING ===================== -->
+    <section class="scr center loading" data-screen="loading" aria-label="Loading">
+        <svg class="mark" aria-hidden="true"><use href="#aura-mark"/></svg>
+        <h2>AURA</h2>
+        <p>Getting your flow ready...</p>
+        <div class="bar" role="progressbar" aria-label="Loading" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="loadBar"><span></span></div>
+    </section>
+
+    <!-- ===================== 3. TERMS & PERMISSIONS ===================== -->
+    <section class="scr terms" data-screen="terms" aria-labelledby="termsTitle">
+        <div class="page-head">
+            <h1 id="termsTitle"><span class="thin">Terms &amp;</span> <span class="bold">Permissions</span></h1>
+            <p class="muted" style="margin-top:6px">The short version, in plain words.</p>
+        </div>
+        <ol class="terms-list glass">
+            <li><span><b>Your data is yours.</b> What you share stays tied to you, and you can export or erase it at any time.</span></li>
+            <li><span><b>Personal, not public.</b> Aura learns your preferences only to shape its help for you, never to sell or profile you.</span></li>
+            <li><span><b>You approve every action.</b> Aura prepares calls, messages and tasks, but nothing is sent or done until you say yes.</span></li>
+            <li><span><b>Permissions on demand.</b> Microphone, notifications, contacts, calendar and location are requested only when you first use a feature that needs them.</span></li>
+            <li><span><b>Helpful, not professional advice.</b> Aura is not a doctor, lawyer or financial advisor. Check important decisions with a qualified person.</span></li>
+            <li><span><b>Fair use.</b> Use Aura for yourself, lawfully and kindly. Don't use it to harm, spam or deceive anyone.</span></li>
+            <li><span><b>Terms can change.</b> If these terms change, we'll show you what's new before you continue.</span></li>
+        </ol>
+        <label class="check"><input type="checkbox" id="termsCheck"> I have read and agree to the T&amp;C.</label>
+        <div class="footer-actions">
+            <button class="btn btn-grad btn-block" id="termsContinue" disabled>CONTINUE</button>
+        </div>
+    </section>
+
+    <!-- ===================== 4. SIGN IN ===================== -->
+    <section class="scr signin" data-screen="signin" aria-labelledby="signinTitle">
+        <div class="page-head" style="margin-top:28px">
+            <h1 id="signinTitle">Get started with <strong class="grad-text">AURA</strong></h1>
+            <p class="sub">Sign In</p>
+        </div>
+        <form class="form" id="signinForm" novalidate autocomplete="on">
+            <div class="field">
+                <label for="suName">Name</label>
+                <input class="glass-input" id="suName" name="name" autocomplete="name" placeholder="Your full name" aria-describedby="suNameErr">
+                <div class="err" id="suNameErr" aria-live="polite"></div>
+            </div>
+            <div class="field">
+                <label for="suEmail">Email</label>
+                <input class="glass-input" id="suEmail" name="email" type="email" autocomplete="email" inputmode="email" placeholder="you@example.com" aria-describedby="suEmailErr">
+                <div class="err" id="suEmailErr" aria-live="polite"></div>
+            </div>
+            <div class="field">
+                <label for="suPass">Password</label>
+                <div class="input-wrap">
+                    <input class="glass-input" id="suPass" name="password" type="password" autocomplete="new-password" placeholder="8+ characters, with a number" aria-describedby="suPassErr">
+                    <button type="button" class="icon-btn eye-toggle" id="passToggle" aria-label="Show password" aria-pressed="false"><svg class="ico"><use href="#i-eye"/></svg></button>
+                </div>
+                <div class="err" id="suPassErr" aria-live="polite"></div>
+            </div>
+            <button type="submit" class="btn btn-grad btn-block" style="margin-top:6px">CREATE YOUR ACCOUNT</button>
+            <p class="local-note"><svg class="ico" style="width:18px;height:18px"><use href="#i-lock"/></svg>Your details are saved only on this device (in local storage). Nothing is sent to a server, and your password is stored as a one-way hash.</p>
+        </form>
+    </section>
+
+    <!-- ===================== 5. WELCOME ===================== -->
+    <section class="scr welcome" data-screen="welcome" aria-label="Welcome">
+        <svg class="mark" aria-hidden="true"><use href="#aura-mark"/></svg>
+        <h1 class="split-title"><span class="l1 thin">Welcome to</span><span class="l2 bold">AURA</span></h1>
+        <p class="who" id="welcomeName"></p>
+        <p class="line">A calmer way through your day — spoken, simple, yours.</p>
+        <button class="btn btn-glass" id="welcomeGo">LET'S BEGIN <svg class="ico"><use href="#i-right"/></svg></button>
+    </section>
+
+    <!-- ===================== 6. SETUP WIZARD ===================== -->
+    <section class="scr setup" data-screen="setup" aria-label="Set up Aura">
+        <div class="hexsteps" id="hexSteps" aria-hidden="true"></div>
+        <div class="hexlabel" id="hexLabel" aria-live="polite"></div>
+
+        <!-- a. Avatar -->
+        <div class="step-pane" data-step="0">
+            <div class="portraits" role="group" aria-label="Choose Aura's look">
+                <button class="portrait glass" data-gender="her" aria-pressed="true"><div class="pic" data-preview="her"></div><div class="reflect" data-reflect="her"></div><span class="name">HER</span></button>
+                <button class="portrait glass" data-gender="him" aria-pressed="false"><div class="pic" data-preview="him"></div><div class="reflect" data-reflect="him"></div><span class="name">HIM</span></button>
+            </div>
+            <button class="btn btn-grad btn-block" data-next>SELECT</button>
+        </div>
+
+        <!-- b. Face -->
+        <div class="step-pane" data-step="1">
+            <div class="car" id="faceCar" role="listbox" aria-label="Faces" tabindex="0"></div>
+            <div class="car-nav">
+                <button class="hex-btn" data-car-prev="faceCar" aria-label="Previous face"><svg class="ico"><use href="#i-left"/></svg></button>
+                <div class="car-dots" id="faceCarDots"></div>
+                <button class="hex-btn" data-car-next="faceCar" aria-label="Next face"><svg class="ico"><use href="#i-right"/></svg></button>
+            </div>
+            <button class="btn btn-grad btn-block" data-next>SELECT</button>
+        </div>
+
+        <!-- c. Personality -->
+        <div class="step-pane" data-step="2">
+            <div class="car" id="personaCar" role="listbox" aria-label="Personalities" tabindex="0" style="height:290px"></div>
+            <div class="car-caption" aria-live="polite"><div class="nm" id="personaName"></div><div class="tg" id="personaTag"></div></div>
+            <div class="car-nav">
+                <button class="hex-btn" data-car-prev="personaCar" aria-label="Previous personality"><svg class="ico"><use href="#i-left"/></svg></button>
+                <div class="car-dots" id="personaCarDots"></div>
+                <button class="hex-btn" data-car-next="personaCar" aria-label="Next personality"><svg class="ico"><use href="#i-right"/></svg></button>
+            </div>
+            <button class="btn btn-grad btn-block" data-next>SELECT</button>
+        </div>
+
+        <!-- d. Name -->
+        <div class="step-pane ask-name" data-step="3">
+            <h2>What should <b>Aura</b> call you?</h2>
+            <label for="callName" class="sr">Your name or nickname</label>
+            <input class="glass-input" id="callName" placeholder="Your name or nickname" autocomplete="nickname" maxlength="32">
+            <p class="hint">You can change this anytime in settings.</p>
+            <button class="btn btn-grad btn-block" id="setupFinish" disabled>CONTINUE</button>
+        </div>
+    </section>
+
+    <!-- ===================== 7. HOME (existing voice screen) ===================== -->
+    <section class="scr home" data-screen="home" aria-label="Home">
+
+        <div class="home-top">
+            <form class="cmdbar glass" id="cmdForm" role="search" autocomplete="off">
+                <svg class="mark" aria-hidden="true"><use href="#aura-mark"/></svg>
+                <label for="cmdInput" class="sr">Ask Aura anything</label>
+                <input id="cmdInput" placeholder="Ask Aura anything..." enterkeyhint="send">
+                <button class="icon-btn" type="submit" aria-label="Send"><svg class="ico"><use href="#i-send"/></svg></button>
+            </form>
+            <button class="icon-btn bell" id="bellBtn" aria-label="Notifications"><svg class="ico"><use href="#i-bell"/></svg><span class="dot" id="bellDot" hidden></span></button>
+        </div>
+
+        <div class="home-scroll" id="homeScroll">
+            <!-- Header -->
+            <div class="header home-greet">
+                <div>
+                    <h1 class="split-title"><span class="l1 thin">Hello</span><span class="l2 bold" id="homeName">there</span></h1>
+                    <p id="headerSubtitle">What shall we do with your day?</p>
+                </div>
+                <button class="icon-btn" onclick="toggleSettings()" aria-label="Settings"><svg class="ico"><use href="#i-gear"/></svg></button>
+            </div>
+
+            <!-- Living avatar -->
+            <div class="avatar-card" id="avatarCard" data-state="idle">
+                <div class="stage" id="homeAvatar"></div>
+                <svg class="listen-mark" aria-hidden="true"><use href="#aura-mark"/></svg>
+                <div class="av-state" id="avState" aria-live="polite">AURA</div>
+                <div class="av-actions">
+                    <button class="icon-btn av-mic" onclick="toggleMic()" aria-label="Talk to Aura"><svg class="ico"><use href="#i-mic"/></svg></button>
+                    <button class="icon-btn" id="camBtn" aria-label="Camera"><svg class="ico"><use href="#i-cam"/></svg></button>
+                </div>
+            </div>
+
+            <!-- Chat Area -->
+            <div id="chatArea" class="chat-area glass" aria-live="polite" aria-label="Conversation with Aura">
+                <div class="aura-message">Hi! Click the mic and speak. Try: "hello aura" or "focus mode"</div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="dock controls">
+            <div class="transcript" id="transcript">Listening...</div>
+            <div class="dock-row">
+                <button class="contacts-btn" onclick="toggleContacts()"><svg class="ico" style="width:18px;height:18px"><use href="#i-contacts"/></svg>Contacts</button>
+                <button class="mic-button" id="micButton" onclick="toggleMic()">🎤 SPEAK NOW</button>
+                <!-- Mode Display -->
+                <div id="modeDisplay" class="mode-display">MODE: NORMAL ✓</div>
+            </div>
+        </div>
+
+        <nav class="rail" aria-label="Main">
+            <button aria-current="page" data-rail="home"><span class="hexbg"></span><svg class="ico"><use href="#i-home"/></svg>Home</button>
+            <button onclick="toggleSettings()" data-rail="settings"><span class="hexbg"></span><svg class="ico"><use href="#i-gear"/></svg>Settings</button>
+            <button data-rail="messages"><span class="hexbg"></span><svg class="ico"><use href="#i-msg"/></svg>Messages</button>
+            <button onclick="toggleContacts()" data-rail="contacts"><span class="hexbg"></span><svg class="ico"><use href="#i-contacts"/></svg>Contacts</button>
+            <button data-rail="premium"><span class="hexbg"></span><svg class="ico"><use href="#i-crown"/></svg>Premium</button>
+            <button data-rail="ideas"><span class="hexbg"></span><svg class="ico"><use href="#i-bulb"/></svg>Ideas</button>
+        </nav>
+    </section>
+
+    <!-- Contacts Panel (IDs and handlers unchanged) -->
+    <div class="contacts-panel" id="contactsPanel" role="dialog" aria-label="My contacts">
+        <h3>📒 My Contacts</h3>
+        <div style="display:flex; gap:8px; margin-bottom:6px;">
+            <input class="contact-input" id="contactName" placeholder="Name e.g. Mom" aria-label="Contact name" />
+            <input class="contact-input" id="contactNum" placeholder="Number" type="tel" aria-label="Contact number" />
+        </div>
+        <button class="add-contact-btn" onclick="addContact()">+ Add Contact</button>
+        <div class="contact-list" id="contactList"></div>
+        <button class="close-contacts-btn" onclick="toggleContacts()">✕ Close</button>
+    </div>
+
+    <!-- Settings panel (opened by toggleSettings) -->
+    <div class="scrim" id="scrim"></div>
+    <div class="sheet" id="settingsPanel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <div class="grab"></div>
+        <div class="sheet-head">
+            <h2 id="settingsTitle"><span>Your</span> <b>settings</b></h2>
+            <button class="icon-btn" data-close-sheet aria-label="Close settings"><svg class="ico"><use href="#i-x"/></svg></button>
+        </div>
+
+        <div class="set-group">
+            <div class="lbl">What Aura calls you</div>
+            <input class="glass-input" id="setName" maxlength="32" aria-label="What Aura calls you">
+        </div>
+
+        <div class="set-group">
+            <div class="lbl">Avatar</div>
+            <div class="seg" role="group" aria-label="Avatar">
+                <button data-set-gender="her">HER</button><button data-set-gender="him">HIM</button>
+            </div>
+        </div>
+
+        <div class="set-group">
+            <div class="lbl">Face</div>
+            <div class="thumbs" id="setFaces" role="group" aria-label="Face"></div>
+        </div>
+
+        <div class="set-group">
+            <div class="lbl">Personality</div>
+            <div class="chips" id="setPersonas" role="group" aria-label="Personality"></div>
+        </div>
+
+        <div class="set-group">
+            <div class="lbl">Voice</div>
+            <select class="glass-input" id="setVoice" aria-label="Voice"></select>
+            <div class="set-row" style="margin-top:8px">
+                <div class="grow"><label for="setRate" class="t">Speech speed</label><div class="s" id="rateLabel">1.0×</div>
+                    <input type="range" id="setRate" min="0.7" max="1.4" step="0.05"></div>
+            </div>
+            <div class="set-row">
+                <label class="grow" for="setAutoSpeak"><div class="t">Aura reads replies aloud</div><div class="s">Speaks any reply that isn't voiced already</div></label>
+                <input type="checkbox" class="switch" id="setAutoSpeak">
+            </div>
+            <button class="btn btn-glass btn-block" id="testVoice" style="margin-top:10px">HEAR AURA</button>
+        </div>
+
+        <div class="set-group">
+            <div class="lbl">Permissions</div>
+            <div class="set-row"><div class="grow"><div class="t">Microphone</div><div class="s" id="micPermLabel">Checking…</div></div><button class="btn btn-glass" id="micPermBtn" style="min-height:44px;padding:0 16px">ALLOW</button></div>
+            <div class="set-row"><label class="grow" for="setNotif"><div class="t">Notifications</div><div class="s" id="notifPermLabel">Off</div></label><input type="checkbox" class="switch" id="setNotif"></div>
+        </div>
+
+        <div class="set-group" style="text-align:center">
+            <button class="danger-link" id="resetOnboarding">Reset onboarding</button>
+        </div>
+    </div>
+
+    <!-- Ideas sheet -->
+    <div class="sheet" id="ideasSheet" role="dialog" aria-modal="true" aria-labelledby="ideasTitle">
+        <div class="grab"></div>
+        <div class="sheet-head">
+            <h2 id="ideasTitle"><span>Try</span> <b>saying</b></h2>
+            <button class="icon-btn" data-close-sheet aria-label="Close ideas"><svg class="ico"><use href="#i-x"/></svg></button>
+        </div>
+        <div class="chips" style="margin-top:12px">
+            <button class="chip" data-say="hello aura">“Hello Aura”</button>
+            <button class="chip" data-say="focus mode">“Focus mode”</button>
+            <button class="chip" data-say="normal mode">“Normal mode”</button>
+            <button class="chip" data-say="call mom">“Call Mom”</button>
+            <button class="chip" data-say="what time is it">“What time is it?”</button>
+        </div>
+    </div>
+
+    <!-- Permission explainer -->
+    <div class="dialog" id="permDialog" role="alertdialog" aria-modal="true" aria-labelledby="permTitle" aria-describedby="permText">
+        <svg class="mark" aria-hidden="true"><use href="#aura-mark"/></svg>
+        <h2 id="permTitle"></h2>
+        <p id="permText"></p>
+        <div class="row">
+            <button class="btn btn-grad" id="permAllow">ALLOW</button>
+            <button class="btn btn-glass" id="permLater">NOT NOW</button>
+        </div>
+    </div>
+
+    <!-- Confirm reset -->
+    <div class="dialog" id="resetDialog" role="alertdialog" aria-modal="true" aria-labelledby="resetTitle">
+        <h2 id="resetTitle">Start over?</h2>
+        <p>This clears your Aura setup on this device and restarts onboarding. Contacts saved by the app are kept.</p>
+        <div class="row">
+            <button class="btn btn-grad" id="resetYes">RESET</button>
+            <button class="btn btn-glass" id="resetNo">CANCEL</button>
+        </div>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</div>
+
+<!-- aura-ui.js must load BEFORE aura.js: it installs speech hooks that aura.js then uses unknowingly. -->
+<script src="aura-ui.js"></script>
+<script src="aura.js"></script>
 </body>
 </html>
